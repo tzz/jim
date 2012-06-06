@@ -78,16 +78,19 @@ if ($options{create})
  write_jim_template($options{database});
  exit;
 }
+
 my %handlers = (
                 # jim ls
                 ls => sub
                 {
+                 my $db = shift @_;
                  my @search = @_;
                  die "TODO: ls @search";
                 },
                 # jim ls-json
                 'ls-json' => sub
                 {
+                 my $db = shift @_;
                  my @search = @_;
                  die "TODO: ls-json @search";
                 },
@@ -99,12 +102,14 @@ my %handlers = (
                 # # set takes --augment and --decrement (-a and -d) to indicate that instead of override, we should add or subtract attributes
                 set => sub
                 {
+                 my $db = shift @_;
                  my @data = @_;
                  die "TODO: set @data";
                 },
 
                 learn => sub
                 {
+                 my $db = shift @_;
                  my @data = @_;
                  die "TODO: learn @data";
                 },
@@ -112,12 +117,14 @@ my %handlers = (
                 # jim set_context a:b 1 or 0 or '"cfengine expression"'
                 set_context => sub
                 {
+                 my $db = shift @_;
                  my @data = @_;
                  die "TODO: set_context @data";
                 },
 
                 learn_context => sub
                 {
+                 my $db = shift @_;
                  my @data = @_;
                  die "TODO: learn_context @data";
                 },
@@ -126,15 +133,54 @@ my %handlers = (
                 # jim add node1 a b
                 add => sub
                 {
+                 my $db = shift @_;
+                 my $name = shift @_;
                  my @parents = @_;
-                 die "TODO: add @parents";
+
+                 die "Non-empty node name must be given to 'add', sorry"
+                  unless $name;
+
+                 die "Node name $name already exists so 'add' must fail, sorry"
+                  if exists $db->{nodes}->{$name};
+
+                 foreach my $parent (@parents)
+                 {
+                  die "Node name $name wants parent $parent but we can't find it, sorry"
+                  unless exists $db->{nodes}->{$parent};
+                 }
+
+                 $db->{nodes}->{$name} = {
+                                          learned_vars => {},
+                                          vars => {},
+                                          learned_contexts => {},
+                                          contexts => {},
+                                          tags => {},
+                                          inherit => { map { $_ => {} } @parents }
+                                         };
+                 print "Added new node $name with parents [@parents]\n"
+                  unless $quiet;
                 },
 
                 # jim rm node1
                 rm => sub
                 {
-                 my @parents = @_;
-                 die "TODO: rm @parents";
+                 my $db = shift @_;
+                 my @todo = @_;
+
+                 die "Nothing given to remove" unless scalar @todo;
+
+                 foreach my $name (@todo)
+                 {
+                  die "Node name $name does not exist so 'rm' must fail, sorry"
+                   unless exists $db->{nodes}->{$name};
+
+                  delete $db->{nodes}->{$name};
+
+                  validate_db($db);
+
+                  print "Removed node $name\n"
+                   unless $quiet;
+                 }
                 },
                );
 
@@ -162,8 +208,12 @@ my %output_handlers = (
                       );
 
 my $db = validate_db();
-
+my $old_json = $canonical_coder->encode($db);
 command_handler($db, @ARGV);
+
+write_jim_template($options{database}, $db)
+ if $canonical_coder->encode($db) ne $old_json;
+
 exit 0;
 
 # we may turn this into a parser eventually
@@ -198,7 +248,7 @@ sub command_handler
  {
   if ($verb eq $command)
   {
-   $handlers{$command}->(@args);
+   $handlers{$command}->($db, @args);
    return;
   }
  }
@@ -215,13 +265,18 @@ sub command_handler
 
 sub validate_db
 {
- die "The database file $options{database} could not be found, use $0 --create"
-  unless -f $options{database};
+ my $db = shift @_;
 
- die "The database file $options{database} was no readable"
-  unless -r $options{database};
+ unless ($db)
+ {
+  die "The database file $options{database} could not be found, use $0 --create"
+   unless -f $options{database};
 
- my $db = load_json($options{database});
+  die "The database file $options{database} was no readable"
+   unless -r $options{database};
+
+  $db = load_json($options{database});
+ }
 
  die "Bad database $options{database}: not a hash!"
   unless ref $db eq 'HASH';
@@ -250,6 +305,12 @@ sub validate_db
    die "Node $node: '$_' value should be a hash!"
     unless ref $v->{$_} eq 'HASH';
   }
+
+  foreach my $parent (sort keys %{$v->{inherit}})
+  {
+   die "Node $node has invalid parent $parent!"
+    unless exists $nodes{$parent};
+  }
  }
 
  return $db;
@@ -274,6 +335,8 @@ sub write_jim_template
  my $f = shift;
  my $db = shift;
 
+ my $mode = -f $f ? 'Rewrote' : 'Created';
+
  open(my $fh, '>', $f)
   or die "Could not write template file $f: $!";
 
@@ -285,7 +348,7 @@ sub write_jim_template
 
  close $fh;
 
- print "Created template $f.\n"
+ print "$mode jim db $f.\n"
   unless $quiet;
 }
 
