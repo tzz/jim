@@ -13,13 +13,17 @@ JSON format for a node:
 
     jim --cfmodule node1
     jim --puppet node1
+    jim --json node1
     jim ls
-    jim ls --json
-    # set attribute b in node a
-    jim set a:b c
-    jim set a:b [ c ]
-    jim set a:b { c: d }
+    jim ls-json
+    # set/learn attribute b in node a (set == learn for the below, except tags)
+    jim set a:b '"c"'
+    jim set a:b '[ "c" ]'
+    jim set a:b '{ c: "d" }'
+    jim set_context a:b 1 or 0 or '"cfengine expression"'
+    
     # set takes --augment and --decrement (-a and -d) to indicate that instead of override, we should add or subtract attributes
+    
     # add a node with parents a and b; node names are unique
     jim add node1 a b
     jim rm node1
