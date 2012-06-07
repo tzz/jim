@@ -14,15 +14,17 @@ JSON format for a node:
     jim --cfmodule node1
     jim --puppet node1
     jim --json node1
-    jim ls
-    jim ls-json
+    jim search TERM1 [and|or TERM2] [and|or TERM3]
+    jim ls [node]
+    jim ls-json [node]
     # set/learn attribute b in node a (set == learn for the below, except tags)
-    jim set a:b '"c"'
-    jim set a:b '[ "c" ]'
-    jim set a:b '{ c: "d" }'
-    jim set_context a:b 1 or 0 or '"cfengine expression"'
+    # all of these have unset/unlearn counterparts
+    jim set a b '"c"'
+    jim set a b '[ "c" ]'
+    jim set a b '{ c: "d" }'
+    jim set-context a b 1 or 0 or '"cfengine expression"'
     
-    # set takes --augment and --decrement (-a and -d) to indicate that instead of override, we should add or subtract attributes
+    # add takes --augment PARAM and --decrement PARAM (-a and -d) to indicate that instead of override, we should add or subtract attributes
     
     # add a node with parents a and b; node names are unique
     jim add node1 a b
