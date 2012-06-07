@@ -39,8 +39,6 @@ my %options =
   cfmodule   => 0,
   yaml       => 0,
   json       => 0,
-  augment    => [],
-  decrement  => [],
 
   database   => "jim.json"
  );
@@ -78,6 +76,8 @@ if ($options{create})
  write_jim_db($options{database});
  exit;
 }
+
+my @containers = qw/learned_vars vars learned_contexts contexts/;
 
 my %handlers = (
                 # jim ls [node]
@@ -219,10 +219,11 @@ my %output_handlers = (
                         my $name = shift @_;
 
                         ensure_name_valid($db, $name);
+                        my $data = resolve_inheritance($db, $name);
 
                         foreach my $context_topk (qw/contexts learned_contexts/)
                         {
-                         my %chash = %{$db->{nodes}->{$name}->{$context_topk}};
+                         my %chash = %{$data->{$context_topk}};
                          my $prefix = ($context_topk eq 'contexts') ? '' : 'learned_';
 
                          foreach my $key (sort keys %chash)
@@ -241,7 +242,7 @@ my %output_handlers = (
 
                         foreach my $var_topk (qw/vars learned_vars/)
                         {
-                         my %vhash = %{$db->{nodes}->{$name}->{$var_topk}};
+                         my %vhash = %{$data->{$var_topk}};
                          my $prefix = ($var_topk eq 'vars') ? '' : 'learned_';
 
                          foreach my $k (sort keys %vhash)
@@ -264,7 +265,8 @@ my %output_handlers = (
                         my $name = shift @_;
 
                         ensure_name_valid($db, $name);
-                        print $coder->encode($db->{nodes}->{$name});
+                        my $data = resolve_inheritance($db, $name);
+                        print $coder->encode($data);
                        },
 
                        yaml => sub
@@ -362,10 +364,10 @@ sub validate_db
  foreach my $node (sort keys %nodes)
  {
   my $v = $nodes{$node};
-  # format:  { learned_vars: {}, vars: {}, learned_contexts: {}, contexts: {}, inherit: { "x": {}, "y": { augment: ["arrayZ"] } } }
+  # format:  { learned_vars: {}, vars: {}, learned_contexts: {}, contexts: {}, inherit: { "x": {}, "y": { } } }
   die "Node $node: record is not a hash" unless ref $v eq 'HASH';
 
-  foreach (qw/learned_vars vars learned_contexts contexts tags inherit/)
+  foreach (@containers, qw/inherit/)
   {
    die "Node $node: no '$_' key!"
     unless exists $v->{$_};
@@ -554,7 +556,7 @@ sub recurse_print
  else
  {
   # convert to a 1/0 boolean
-  $ref = ! ! $ref if is_json_boolean($ref)
+  $ref = ! ! $ref if is_json_boolean($ref);
   push @print, {
                 path => $prefix,
                 type => 'string',
@@ -563,6 +565,64 @@ sub recurse_print
  }
 
  return @print;
+}
+
+sub resolve_inheritance
+{
+ my $db   = shift @_;
+ my $name = shift @_;
+ my @seen = @_;
+
+ die "Uh-oh, inheritance cycle detected: @seen -> $name"
+  if grep { $_ eq $name } @seen;
+
+ my $v = $db->{nodes}->{$name};
+ my $ret = {};
+
+ foreach my $parent (sort keys %{$v->{inherit}})
+ {
+  my $pres = resolve_inheritance($db, $parent, @seen, $name);
+
+  die "Parent $parent did not produce valid data!"
+   unless ref $pres eq 'HASH';
+
+  foreach my $container (@containers)
+  {
+   die "Expected inheritance container $container not found in parent $parent!"
+    unless ref $pres->{$container} eq 'HASH';
+
+   foreach my $pk (keys %{$pres->{$container}})
+   {
+    my $ak = '$+'. $pk;
+    my $dk = '$-'. $pk;
+
+    if (exists $v->{$container}->{$ak}) # augment
+    {
+     die "TODO: augmented inheritance not supported yet";
+     delete $v->{$container}->{$ak};
+    }
+    elsif (exists $v->{$container}->{$dk}) # decrement
+    {
+     die "TODO: decremented inheritance not supported yet";
+     delete $v->{$container}->{$dk};
+    }
+    else
+    {
+     $ret->{$container}->{$pk} = $pres->{$container}->{$pk};
+    }
+   }
+  }
+ }
+
+ foreach my $container (@containers)
+ {
+  $ret->{$container} = {} unless scalar keys %{$v->{$container}};
+
+  $ret->{$container}->{$_} = $v->{$container}->{$_}
+   foreach keys %{$v->{$container}};
+ }
+
+ return $ret;
 }
 
 sub write_jim_db

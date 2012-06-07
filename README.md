@@ -7,7 +7,7 @@ Jim (is an) Inventory Manager
 
 JSON format for a node:
 
-    { learned_vars: {}, vars: {}, learned_contexts: {}, contexts: {}, tags: {}, inherit: { "x": {}, "y": { augment: ["arrayZ"] } } }
+    { learned_vars: {}, vars: {}, learned_contexts: {}, contexts: {}, tags: {}, inherit: { "x": {}, "y": { } } }
 
 # HOWTO
 
@@ -23,9 +23,10 @@ JSON format for a node:
     jim set a b '[ "c" ]'
     jim set a b '{ c: "d" }'
     jim set-context a b 1 or 0 or '"cfengine expression"'
-    
-    # add takes --augment PARAM and --decrement PARAM (-a and -d) to indicate that instead of override, we should add or subtract attributes
-    
+
+    # setting "$+varname" means you want to augment it (only arrays and hashes)
+    # setting "$-varname" means you want to decrement it (only arrays and hashes)
+
     # add a node with parents a and b; node names are unique
     jim add node1 a b
     jim rm node1
