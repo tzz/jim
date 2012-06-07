@@ -542,7 +542,7 @@ sub recurse_print
  # recurse for hashes
  if (ref $ref eq 'HASH')
  {
-  push @print, recurse_print($ref->{$_}, $prefix . "[$_]")
+  push @print, recurse_print($ref->{$_}, $prefix . "[$_]", $unquote_scalars)
    foreach sort keys %$ref;
  }
  elsif (ref $ref eq 'ARRAY')
@@ -576,7 +576,7 @@ sub resolve_inheritance
  die "Uh-oh, inheritance cycle detected: @seen -> $name"
   if grep { $_ eq $name } @seen;
 
- my $v = $db->{nodes}->{$name};
+ my $v = eval_any_json($coder->encode($db->{nodes}->{$name}));
  my $ret = {};
 
  foreach my $parent (sort keys %{$v->{inherit}})
@@ -595,18 +595,66 @@ sub resolve_inheritance
    {
     my $ak = '$+'. $pk;
     my $dk = '$-'. $pk;
+    my $written = 0;
 
     if (exists $v->{$container}->{$ak}) # augment
     {
-     die "TODO: augmented inheritance not supported yet";
+     my $pv = eval_any_json($coder->encode($pres->{$container}->{$pk}));
+     my $av = $v->{$container}->{$ak};
+
+     die "Mismatched augmentation inheritance: parent $parent and node $name have different ideas about $container/$pk"
+      if ref $pv ne ref $av;
+
+     if (ref $av eq 'ARRAY')
+     {
+      $ret->{$container}->{$pk} = [ @$pv, @$av ];
+     }
+     elsif (ref $av eq 'HASH')
+     {
+      # No, I am NOT doing Hash::Merge or multi-level data merging.
+      # If you want jim to handle that case, let me know.
+
+      $ret->{$container}->{$pk}->{$_} = $pv->{$_} foreach keys %$pv;
+      $ret->{$container}->{$pk}->{$_} = $av->{$_} foreach keys %$av;
+     }
+     else
+     {
+      die "Huh?  You are augmenting something besides a HASH or an ARRAY from parent $parent and node $name $container/$pk"
+     }
+
      delete $v->{$container}->{$ak};
+     $written = 1;
     }
-    elsif (exists $v->{$container}->{$dk}) # decrement
+
+    if (exists $v->{$container}->{$dk}) # decrement
     {
-     die "TODO: decremented inheritance not supported yet";
+     # pv may already be set from above...
+     my $pv = $ret->{$container}->{$pk} || eval_any_json($coder->encode($pres->{$container}->{$pk}));
+     my $dv = $v->{$container}->{$dk};
+
+     die "Mismatched decrement inheritance: parent $parent and node $name have different ideas about $container/$pk"
+      if ref $pv ne ref $dv;
+
+     if (ref $dv eq 'ARRAY')
+     {
+      my %filter = map { $_ => 1 } @$dv;
+      $ret->{$container}->{$pk} = [grep { !exists $filter{$_} } @$pv];
+     }
+     elsif (ref $dv eq 'HASH')
+     {
+      $ret->{$container}->{$pk} = $pv;
+      delete $ret->{$container}->{$pk}->{$_} foreach keys %$dv;
+     }
+     else
+     {
+      die "Huh?  You are augmenting something besides a HASH or an ARRAY from parent $parent and node $name $container/$pk"
+     }
+
      delete $v->{$container}->{$dk};
+     $written = 1;
     }
-    else
+
+    if (!$written)
     {
      $ret->{$container}->{$pk} = $pres->{$container}->{$pk};
     }
