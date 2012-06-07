@@ -80,7 +80,6 @@ if ($options{create})
 my @containers = qw/learned_vars vars learned_contexts contexts/;
 
 my %handlers = (
-                # jim ls [node]
                 ls => sub
                 {
                  my $db = shift @_;
@@ -90,7 +89,6 @@ my %handlers = (
                  exit !scalar keys %$results;
                 },
 
-                # jim ls-json [node]
                 'ls-json' => sub
                 {
                  my $db = shift @_;
