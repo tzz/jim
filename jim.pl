@@ -85,10 +85,9 @@ my %handlers = (
                 {
                  my $db = shift @_;
                  my @search = @_;
-                 die "TODO: ls @search";
-
-                 my @results;
-                 exit !scalar @results;
+                 my $results = ls($db, @search);
+                 print join(' ', grep { exists $results->{$_} } @search), "\n";
+                 exit !scalar keys %$results;
                 },
 
                 # jim ls-json [node]
@@ -96,28 +95,25 @@ my %handlers = (
                 {
                  my $db = shift @_;
                  my @search = @_;
-                 die "TODO: ls-json @search";
+                 my $results = ls($db, @search);
+                 foreach (@search)
+                 {
+                  next unless exists $results->{$_};
+                  print "$_\t", $coder->encode($results->{$_}), "\n";
+                 }
 
-                 my @results;
-                 exit !scalar @results;
+                 exit !scalar keys %$results;
                 },
 
-                # jim search TERM1 [and|or TERM2] [and|or TERM3]
                 search => sub
                 {
                  my $db = shift @_;
                  my @search = @_;
-                 die "TODO: search @search";
-
-                 my @results;
-                 exit !scalar @results;
+                 my $results = search($db, @search);
+                 print join(' ', sort keys %$results), "\n";
+                 exit !scalar keys %$results;
                 },
 
-                # # set/learn attribute b in node a (set == learn for the below)
-                # # all of these have unset/unlearn counterparts
-                # jim set a b '"c"'
-                # jim set a b '[ "c" ]'
-                # jim set a b '{ c: "d" }'
                 set => sub
                 {
                  general_set('set', @_);
@@ -128,7 +124,6 @@ my %handlers = (
                  general_set('learn', @_);
                 },
 
-                # jim set-context a b 1 or 0 or '"cfengine expression"'
                 'set-context' => sub
                 {
                  general_set('set-context', @_);
@@ -159,8 +154,6 @@ my %handlers = (
                  general_unset('unlearn-context', @_);
                 },
 
-                # # add a node with parents a and b; node names are unique
-                # jim add node1 a b
                 add => sub
                 {
                  my $db = shift @_;
@@ -189,7 +182,6 @@ my %handlers = (
                   unless $quiet;
                 },
 
-                # jim rm node1
                 rm => sub
                 {
                  my $db = shift @_;
@@ -266,7 +258,7 @@ my %output_handlers = (
 
                         ensure_name_valid($db, $name);
                         my $data = resolve_inheritance($db, $name);
-                        print $coder->encode($data);
+                        print $coder->encode($data), "\n";
                        },
 
                        yaml => sub
@@ -671,6 +663,41 @@ sub resolve_inheritance
  }
 
  return $ret;
+}
+
+sub ls
+{
+ my $db = shift @_;
+ my @search = @_;
+ my %results;
+
+ foreach my $node (@search)
+ {
+  my $data = $db->{nodes}->{$node};
+  next unless $data;
+
+  $results{$node} = $data;
+ }
+
+ return \%results;
+}
+
+sub search
+{
+ my $db = shift @_;
+ my @search = @_;
+ my %results;
+
+ foreach my $term (@search)
+ {
+  foreach my $node (keys %{$db->{nodes}})
+  {
+   next if exists $results{$node};
+   next unless $node =~ m/$term/;
+   $results{$node} = $db->{nodes}->{$node};
+  }
+ }
+ return \%results;
 }
 
 sub write_jim_db
