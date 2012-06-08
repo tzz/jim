@@ -77,6 +77,7 @@ if ($options{create})
  exit;
 }
 
+my @modified;
 my @containers = qw/learned_vars vars learned_contexts contexts/;
 
 my %handlers = (
@@ -176,6 +177,7 @@ my %handlers = (
                                           contexts => {},
                                           inherit => { map { $_ => {} } @parents }
                                          };
+                 push @modified, $name;
                  print "DONE: add $name @parents\n"
                   unless $quiet;
                 },
@@ -193,6 +195,7 @@ my %handlers = (
                    unless exists $db->{nodes}->{$name};
 
                   delete $db->{nodes}->{$name};
+                  push @modified, $name;
 
                   validate_db($db);
 
@@ -267,7 +270,7 @@ my %output_handlers = (
                        },
                       );
 
-my $db = validate_db();
+my $db = validate_db(read_jim_db());
 my $old_json = $canonical_coder->encode($db);
 command_handler($db, @ARGV);
 
@@ -329,24 +332,18 @@ sub validate_db
 
  unless ($db)
  {
-  die "The database file $options{database} could not be found, use $0 --create"
-   unless -f $options{database};
-
-  die "The database file $options{database} was no readable"
-   unless -r $options{database};
-
-  $db = load_json($options{database});
+  $db = read_jim_db();
  }
 
- die "Bad database $options{database}: not a hash!"
+ die "Bad jim database: not a hash!"
   unless ref $db eq 'HASH';
 
  foreach (qw/metadata nodes/)
  {
-  die "Bad database $options{database}: no '$_' key!"
+  die "Bad jim database: no '$_' key!"
    unless exists $db->{$_};
 
-  die "Bad database $options{database}: '$_' value should be a hash!"
+  die "Bad jim database: '$_' value should be a hash!"
    unless ref $db->{$_} eq 'HASH';
  }
 
@@ -478,6 +475,7 @@ sub general_set
   if $mode =~ m/context$/;
 
  $db->{nodes}->{$name}->{$vkey}->{$key} = $d;
+ push @modified, $name;
 
  print "DONE: $mode $name $key '$value'\n"
   unless $quiet;
@@ -507,6 +505,7 @@ sub general_unset
   unless exists $db->{nodes}->{$name}->{$vkey}->{$key};
 
  delete $db->{nodes}->{$name}->{$vkey}->{$key};
+ push @modified, $name;
 
  print "DONE: $mode $name $key\n"
   unless $quiet;
@@ -698,6 +697,18 @@ sub search
  return \%results;
 }
 
+sub read_jim_db
+{
+  die "The database file $options{database} could not be found, use $0 --create"
+   unless -f $options{database};
+
+  die "The database file $options{database} was no readable"
+   unless -r $options{database};
+
+  @modified = ();
+  return load_json($options{database});
+}
+
 sub write_jim_db
 {
  my $f = shift;
@@ -716,8 +727,9 @@ sub write_jim_db
 
  close $fh;
 
- print "$mode jim db $f.\n"
+ print "$mode jim db $f (@{[ scalar @modified]} changes).\n"
   unless $quiet;
+ @modified = ();
 }
 
 __DATA__
