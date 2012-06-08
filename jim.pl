@@ -83,6 +83,15 @@ my @modified;
 my @containers = qw/learned_vars vars learned_contexts contexts/;
 
 my %handlers = (
+                rules => sub
+                {
+                 my $db = shift @_;
+                 foreach my $name (sort keys %{$db->{rules}})
+                 {
+                  printf "%s\t%s\n", $name, $db->{rules}->{$name};
+                 }
+                },
+
                 ls => sub
                 {
                  my $db = shift @_;
@@ -172,7 +181,7 @@ my %handlers = (
                  my $name = shift @_;
                  my @parents = @_;
 
-                 ensure_name_valid($db, $name);
+                 ensure_node_valid($db, $name);
 
                  die "Node name $name already exists so 'add' must fail, sorry"
                   if exists $db->{nodes}->{$name};
@@ -216,6 +225,38 @@ my %handlers = (
                   unless $quiet;
                  }
                 },
+
+                'add-rule' => sub
+                {
+                 my $db   = shift @_;
+                 my $name = shift @_;
+                 my $rule = shift @_;
+
+                 die "Invalid add-rule syntax, please see --help"
+                  unless defined $rule;
+
+                 die "Rule $name already exists so 'add-rule' must fail, sorry"
+                  if exists $db->{rules}->{$name};
+
+                 warn "TODO: add-rule";
+                 ensure_rule_valid($db, $name);
+                 $db->{rules}->{$name} = $rule;
+                 push @modified, $name;
+                },
+
+                'rm-rule' => sub
+                {
+                 my $db    = shift @_;
+                 my @todo = @_;
+
+                 foreach my $name (@todo)
+                 {
+                  die "Rule $name does not exist so 'rm-rule' must fail, sorry"
+                   unless exists $db->{rules}->{$name};
+                  delete $db->{rules}->{$name};
+                  push @modified, $name;
+                 }
+                },
                );
 
 my %output_handlers = (
@@ -224,7 +265,7 @@ my %output_handlers = (
                         my $db = shift @_;
                         my $name = shift @_;
 
-                        ensure_name_valid($db, $name);
+                        ensure_node_exists($db, $name);
                         my $data = resolve_inheritance($db, $name);
 
                         foreach my $context_topk (qw/contexts learned_contexts/)
@@ -270,7 +311,7 @@ my %output_handlers = (
                         my $db = shift @_;
                         my $name = shift @_;
 
-                        ensure_name_valid($db, $name);
+                        ensure_node_exists($db, $name);
                         my $data = resolve_inheritance($db, $name);
                         print $coder->encode($data), "\n";
                        },
@@ -410,13 +451,30 @@ sub validate_db
  return $db;
 }
 
-sub ensure_name_valid
+sub ensure_rule_valid { return ensure_thing_valid('rule', @_); }
+sub ensure_node_valid { return ensure_thing_valid('node', @_); }
+
+sub ensure_thing_valid
 {
- my $db = shift @_;
+ my $type = shift @_;
+ my $db   = shift @_;
  my $name = shift @_;
 
- die "Non-empty node name must be given, sorry"
+ die "Non-empty $type name must be given, sorry"
   unless $name;
+}
+
+sub ensure_rule_exists { return ensure_thing_exists('rule', @_); }
+sub ensure_node_exists { return ensure_thing_exists('node', @_); }
+
+sub ensure_thing_exists
+{
+ my $type = shift @_;
+ my $db   = shift @_;
+ my $name = shift @_;
+
+ die "$type $name doesn't exist, sorry"
+  unless exists $db->{"${type}s"}->{$name};
 }
 
 sub ensure_kv_valid
@@ -493,7 +551,7 @@ sub general_set
  my $key   = shift @_;
  my $value = shift @_;
 
- ensure_name_valid($db, $name);
+ ensure_node_exists($db, $name);
  ensure_kv_valid($mode, $key, $value);
 
  my $vkey;
@@ -525,7 +583,7 @@ sub general_unset
  my $name  = shift @_;
  my $key   = shift @_;
 
- ensure_name_valid($db, $name);
+ ensure_node_exists($db, $name);
  ensure_k_valid($mode, $key);
 
  my $vkey;
@@ -704,7 +762,7 @@ sub dirname_inherited
  my $db   = shift @_;
  my $name = shift @_;
 
- ensure_name_valid($db, $name);
+ ensure_node_exists($db, $name);
  my @parents = sort keys %{$db->{nodes}->{$name}->{inherit}};
  return $name unless scalar @parents;
 
@@ -776,6 +834,7 @@ sub write_jim_db
 
  my $template = {
                  metadata => {},
+                 rules => {},
                  nodes => {}
                 };
  print $fh $coder->pretty(1)->encode($db || $template);

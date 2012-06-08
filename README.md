@@ -32,10 +32,33 @@ All of these have unset/unlearn counterparts.
 Setting "$+varname" means you want to augment varname (only arrays and hashes).
 Setting "$-varname" means you want to decrement varname (only arrays and hashes),
 
-Add a node with parents a and b; node names are unique,
+Putting "$(varname)" in a value expands it to the value of that
+attribute, and causes a fatal error if varname is missing.
+
+    jim set a interpolated '"$(x)"'
+
+Add a node with parents a and b; node names are unique.
 
     jim add node1 a b
     jim rm node1
+
+# Warning: not only TODO, but very hazardous to your mental health
+
+TODO: Add a rule to set subnet to 192.168.2/24 when 'colo' is 'CHI'.
+
+    jim add-rule chi-colo-subnet '(when (equal (get this "colo") "CHI") (set this "subnet" "192.168.2/24"))'
+
+TODO: Add a rule to add 'tzz' to 'sudoers' when 'tags' contains 'devbox'.
+
+    jim add-rule devbox-tzz-sudoers '(when (member (get this "tags") "devbox") (push this "sudoers" "tzz"))'
+
+TODO: Add a rule to set 'has_owner' to 'yes'/'no' when 'owner' is present/missing.
+
+    jim add-rule set-has-owner '(set this "has_owner" (if (has this "owner") "yes" "no"))'
+
+Remove a rule by name:
+
+    jim rm-rule set-has-owner
 
 # TODO
 
