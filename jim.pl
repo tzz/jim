@@ -87,6 +87,8 @@ my %handlers = (
                 {
                  my $db = shift @_;
                  my @search = @_;
+                 @search = (sort keys %{$db->{nodes}}) unless scalar @search;
+
                  my $results = ls($db, @search);
                  print join(' ', grep { exists $results->{$_} } @search), "\n";
                  exit !scalar keys %$results;
@@ -96,6 +98,8 @@ my %handlers = (
                 {
                  my $db = shift @_;
                  my @search = @_;
+                 @search = (sort keys %{$db->{nodes}}) unless scalar @search;
+
                  my $results = ls($db, @search);
                  foreach (@search)
                  {
@@ -110,6 +114,9 @@ my %handlers = (
                 {
                  my $db = shift @_;
                  my @search = @_;
+
+                 @search = '.' unless scalar @search;
+
                  my $results = search($db, @search);
                  print join(' ', sort keys %$results), "\n";
                  exit !scalar keys %$results;
@@ -679,7 +686,7 @@ sub resolve_inheritance
 
  foreach my $container (@containers)
  {
-  $ret->{$container} = {} unless scalar keys %{$v->{$container}};
+  $ret->{$container} ||= {};
 
   $ret->{$container}->{$_} = $v->{$container}->{$_}
    foreach keys %{$v->{$container}};
