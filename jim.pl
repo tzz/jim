@@ -280,7 +280,7 @@ if ($options{plugins})
   {
    my $pname = $1;
    print "Loading plugin $pname from $p\n"
-    unless $quiet;
+    if $verbose;
 
    my $do = do $p;
    if ($do)
