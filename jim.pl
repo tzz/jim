@@ -90,7 +90,9 @@ my %handlers = (
                  @search = (sort keys %{$db->{nodes}}) unless scalar @search;
 
                  my $results = ls($db, @search);
-                 print join(' ', grep { exists $results->{$_} } @search), "\n";
+                 my @todo = grep { exists $results->{$_} } @search;
+                 print dirname_inherited($db, $_), "\n"
+                  foreach @todo;
                  exit !scalar keys %$results;
                 },
 
@@ -101,10 +103,12 @@ my %handlers = (
                  @search = (sort keys %{$db->{nodes}}) unless scalar @search;
 
                  my $results = ls($db, @search);
-                 foreach (@search)
+                 foreach my $node (@search)
                  {
-                  next unless exists $results->{$_};
-                  print "$_\t", $coder->encode($results->{$_}), "\n";
+                  next unless exists $results->{$node};
+                  printf("%s\t%s\n",
+                         dirname_inherited($db, $node),
+                         $coder->encode($results->{$node}));
                  }
 
                  exit !scalar keys %$results;
@@ -676,7 +680,7 @@ sub resolve_inheritance
      $written = 1;
     }
 
-    if (!$written)
+    unless ($written)
     {
      $ret->{$container}->{$pk} = $pres->{$container}->{$pk};
     }
@@ -693,6 +697,24 @@ sub resolve_inheritance
  }
 
  return $ret;
+}
+
+sub dirname_inherited
+{
+ my $db   = shift @_;
+ my $name = shift @_;
+
+ ensure_name_valid($db, $name);
+ my @parents = sort keys %{$db->{nodes}->{$name}->{inherit}};
+ return $name unless scalar @parents;
+
+ my @printed_parents = map { dirname_inherited($db, $_) } @parents;
+
+ return sprintf('%s%s%s/%s',
+                scalar @parents > 1 ? '{' : '',
+                join(',', @printed_parents),
+                scalar @parents > 1 ? '}' : '',
+                $name);
 }
 
 sub ls
