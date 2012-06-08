@@ -39,6 +39,7 @@ my %options =
   cfmodule   => 0,
   yaml       => 0,
   json       => 0,
+  plugins    => 1,
 
   database   => "jim.json"
  );
@@ -48,6 +49,7 @@ my @options_spec =
   "quiet|q!",
   "help!",
   "verbose|v!",
+  "plugins|p!",
   "cfmodule|cf!",
   "yaml|y!",
   "json|j!",
@@ -270,6 +272,29 @@ my %output_handlers = (
                        },
                       );
 
+if ($options{plugins})
+{
+ foreach my $p (glob("plugins/*.jim.pl"))
+ {
+  if ($p =~ m,/(.+)\.jim\.pl,)
+  {
+   my $pname = $1;
+   print "Loading plugin $pname from $p\n"
+    unless $quiet;
+
+   my $do = do $p;
+   if ($do)
+   {
+    $handlers{$pname} = $do;
+   }
+   else
+   {
+    warn "Plugin $pname failed to load from $p!\n";
+   }
+  }
+ }
+}
+
 my $db = validate_db(read_jim_db());
 my $old_json = $canonical_coder->encode($db);
 command_handler($db, @ARGV);
@@ -307,6 +332,7 @@ sub command_handler
   unless scalar @args;
 
  my $verb = shift @args;
+
  foreach my $command (keys %handlers)
  {
   if ($verb eq $command)
