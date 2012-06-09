@@ -53,7 +53,28 @@ Change the parents to a new list.
 
 ## EC2 plugin
 
-# Warning: not only TODO, but very hazardous to your mental health
+Create the necessary entries in a node, which you can inherit.
+
+    jim ec2 bootstrap top-node 'myEC2key'
+
+Add a client node inheriting from the top-node template and with 10 instances
+
+    jim add client top-node
+    jim set client instances 10
+	jim set client hub '"10.0.11.12"'
+    jim set client ip '"auto"'
+    jim set-context client cfclient
+
+Initialize a hub node to use the top-node template and have 1 instances
+
+    jim add hub top-node
+    jim set hub instances 10
+    jim set hub ip '"10.0.11.12"'
+    jim set-context hub cfhub
+
+# Rules
+
+Rules are not only TODO, but very hazardous to your mental health.
 
 TODO: Add a rule to set subnet to 192.168.2/24 when 'colo' is 'CHI'.
 

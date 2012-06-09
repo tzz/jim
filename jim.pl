@@ -308,10 +308,12 @@ my %output_handlers = (
 
                          foreach my $key (sort keys %chash)
                          {
+                          my $pk = $key;
+                          $pk =~ s/\W/_/g;
                           my $v = $chash{$key};
                           if (ref $v) # a boolean
                           {
-                           print "+${prefix}$key\n" if $v;
+                           print "+${prefix}$pk\n" if $v;
                           }
                           else  # a string or number
                           {
@@ -327,8 +329,10 @@ my %output_handlers = (
 
                          foreach my $k (sort keys %vhash)
                          {
+                          my $pk = $k;
+                          $pk =~ s/\W/_/g;
                           foreach my $p (recurse_print($vhash{$k},
-                                                       "${prefix}$k",
+                                                       "${prefix}$pk",
                                                        1))
                           {
                            my $at = $p->{type} eq 'slist' ? '@' : '=';
