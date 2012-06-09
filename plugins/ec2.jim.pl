@@ -9,14 +9,6 @@ return sub
  {
   print "ec2 bootstrapping @args\n";
  }
- elsif ($command eq 'init')
- {
-  print "ec2 initializing @args\n";
- }
- elsif ($command eq 'deinit')
- {
-  print "ec2 deinitializing @args\n";
- }
  elsif ($command eq 'start')
  {
   print "ec2 starting @args\n";

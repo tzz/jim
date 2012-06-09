@@ -55,9 +55,11 @@ Change the parents to a new list.
 
 Create the necessary entries in a node, which you can inherit.
 
+    jim add top-node
     jim ec2 bootstrap top-node 'myEC2key'
 
-Add a client node inheriting from the top-node template and with 10 instances
+Add a client node inheriting from the top-node template and with 10
+instances.  Set the hub IP.
 
     jim add client top-node
     jim set client instances 10
@@ -65,12 +67,27 @@ Add a client node inheriting from the top-node template and with 10 instances
     jim set client ip '"auto"'
     jim set-context client cfclient
 
-Initialize a hub node to use the top-node template and have 1 instances
+Initialize a hub node to use the top-node template and have 1
+instances.  Set the IP.
 
     jim add hub top-node
-    jim set hub instances 10
+    jim set hub instances 1
     jim set hub ip '"10.0.11.12"'
     jim set-context hub cfhub
+
+Start/stop all the instances to satisfy 'instances', or 1 specific
+node at a time until it's satisfied.
+
+    jim ec2 start
+    jim ec2 start 1 hub
+    jim ec2 stop
+    jim ec2 stop 1 client
+
+List what's running.
+
+    jim ec2 list
+    jim ec2 list hub
+    jim ec2 list client
 
 # Rules
 
