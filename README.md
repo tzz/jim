@@ -26,14 +26,17 @@ All of these have unset/unlearn counterparts.
 
     jim set a b '"c"'
     jim set a b '[ "c" ]'
-    jim set a b '{ c: "d" }'
-    jim set-context a b 1 or 0 or '"cfengine expression"'
+    jim set a b '{ "c": "d" }'
+    jim set-context a b 1 or 0 or true or false or '"cfengine expression"'
 
-Setting "$+varname" means you want to augment varname (only arrays and hashes).
-Setting "$-varname" means you want to decrement varname (only arrays and hashes),
+You can omit the value for context.  It's assumed to be true in that case.
+
+Setting "=+varname" means you want to augment varname (only arrays and hashes).
+Setting "=-varname" means you want to decrement varname (only arrays and hashes),
 
 Putting "$(varname)" in a value expands it to the value of that
-attribute, and causes a fatal error if varname is missing.
+attribute, and causes a fatal error if varname is missing.  Do it only
+for set/learned values, it won't work for contexts.
 
     jim set a interpolated '"$(x)"'
 
@@ -41,6 +44,14 @@ Add a node with parents a and b; node names are unique.
 
     jim add node1 a b
     jim rm node1
+
+Change the parents to a new list.
+
+    jim parents node1 b
+
+# Plugins
+
+## EC2 plugin
 
 # Warning: not only TODO, but very hazardous to your mental health
 

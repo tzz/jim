@@ -80,7 +80,9 @@ if ($options{create})
 }
 
 my @modified;
-my @containers = qw/learned_vars vars learned_contexts contexts/;
+my @data_containers = qw/learned_vars vars/;
+my @context_containers = qw/learned_contexts contexts/;
+my @containers = (@data_containers, @context_containers);
 
 my %handlers = (
                 rules => sub
@@ -96,31 +98,30 @@ my %handlers = (
                 {
                  my $db = shift @_;
                  my @search = @_;
-                 @search = (sort keys %{$db->{nodes}}) unless scalar @search;
+                 @search = keys %{$db->{nodes}} unless scalar @search;
 
-                 my $results = ls($db, @search);
-                 my @todo = grep { exists $results->{$_} } @search;
-                 print dirname_inherited($db, $_), "\n"
-                  foreach @todo;
-                 exit !scalar keys %$results;
+                 my @results = ls($db, \@search, sub
+                                 {
+                                  print dirname_inherited($db, shift), "\n";
+                                 });
+
+                 exit !scalar @results;
                 },
 
                 'ls-json' => sub
                 {
                  my $db = shift @_;
                  my @search = @_;
-                 @search = (sort keys %{$db->{nodes}}) unless scalar @search;
+                 @search = keys %{$db->{nodes}} unless scalar @search;
 
-                 my $results = ls($db, @search);
-                 foreach my $node (@search)
-                 {
-                  next unless exists $results->{$node};
-                  printf("%s\t%s\n",
-                         dirname_inherited($db, $node),
-                         $coder->encode($results->{$node}));
-                 }
+                 my @results = ls($db, \@search, sub
+                                 {
+                                  printf("%s\t%s\n",
+                                         dirname_inherited($db, shift),
+                                         $coder->encode(shift));
+                                 });
 
-                 exit !scalar keys %$results;
+                 exit !scalar @results;
                 },
 
                 search => sub
@@ -130,9 +131,14 @@ my %handlers = (
 
                  @search = '.' unless scalar @search;
 
-                 my $results = search($db, @search);
-                 print join(' ', sort keys %$results), "\n";
-                 exit !scalar keys %$results;
+                 my @results = search($db, \@search);
+
+                 print join(' ',
+                            sort map
+                            {
+                             dirname_inherited($db, $_->{name})
+                            } @results), "\n";
+                 exit !scalar @results;
                 },
 
                 set => sub
@@ -204,6 +210,27 @@ my %handlers = (
                   unless $quiet;
                 },
 
+                parents => sub
+                {
+                 my $db = shift @_;
+                 my $name = shift @_;
+                 my @parents = @_;
+
+                 ensure_node_exists($db, $name);
+
+                 foreach my $parent (@parents)
+                 {
+                  die "Node name $name wants parent $parent but we can't find it, sorry"
+                  unless exists $db->{nodes}->{$parent};
+                 }
+
+                 $db->{nodes}->{$name}->{inherit} = {map { $_ => {} } @parents};
+
+                 push @modified, $name;
+                 print "DONE: parents $name @parents\n"
+                  unless $quiet;
+                },
+
                 rm => sub
                 {
                  my $db = shift @_;
@@ -266,7 +293,13 @@ my %output_handlers = (
                         my $name = shift @_;
 
                         ensure_node_exists($db, $name);
-                        my $data = resolve_inheritance($db, $name);
+                        my $data = resolve_contents($db, $name);
+                        my @parents_slist = recurse_print([ sort keys %{$db->{nodes}->{$name}->{inherit}} ],
+                                                          "",
+                                                          1);
+                        print "+__jim\n";
+                        print "=__jim_name=$name\n";
+                        printf "\@__jim_parents=%s\n", $parents_slist[0]->{value};
 
                         foreach my $context_topk (qw/contexts learned_contexts/)
                         {
@@ -312,7 +345,7 @@ my %output_handlers = (
                         my $name = shift @_;
 
                         ensure_node_exists($db, $name);
-                        my $data = resolve_inheritance($db, $name);
+                        my $data = resolve_contents($db, $name);
                         print $coder->encode($data), "\n";
                        },
 
@@ -551,6 +584,8 @@ sub general_set
  my $key   = shift @_;
  my $value = shift @_;
 
+ $value = 'true' if ($mode =~ m/context$/ && !defined $value);
+
  ensure_node_exists($db, $name);
  ensure_kv_valid($mode, $key, $value);
 
@@ -566,6 +601,7 @@ sub general_set
 
  # TODO: handle augment/decrement
  my $d = eval_any_json($value);
+
  ensure_v_is_context($mode, $value, $d)
   if $mode =~ m/context$/;
 
@@ -651,6 +687,40 @@ sub recurse_print
  return @print;
 }
 
+sub resolve_contents
+{
+ return resolve_interpolations(resolve_inheritance(@_));
+}
+
+# this is fairly primitive, resolving only scalars and only once
+sub resolve_interpolations
+{
+ my $data = shift @_;
+ return $data unless ref $data eq 'HASH';
+
+ foreach my $c (@data_containers)
+ {
+  foreach my $k (keys %{$data->{$c}})
+  {
+   my $v = $data->{$c}->{$k};
+
+   if ($v =~ m/\$\(([^)]+)\)/ && $v ne $1)
+   {
+    my $symbol = $1;
+    foreach my $c2 (@data_containers)
+    {
+     if (exists $data->{$c2}->{$symbol})
+     {
+      $data->{$c}->{$k} =~ s/\$\($symbol\)/$data->{$c2}->{$symbol}/g;
+     }
+    }
+   }
+  }
+ }
+
+ return $data;
+}
+
 sub resolve_inheritance
 {
  my $db   = shift @_;
@@ -677,15 +747,14 @@ sub resolve_inheritance
 
    foreach my $pk (keys %{$pres->{$container}})
    {
-    my $ak = '$+'. $pk;
-    my $dk = '$-'. $pk;
+    my $ak = '=+'. $pk;
+    my $dk = '=-'. $pk;
     my $written = 0;
 
     if (exists $v->{$container}->{$ak}) # augment
     {
      my $pv = eval_any_json($coder->encode($pres->{$container}->{$pk}));
      my $av = $v->{$container}->{$ak};
-
      die "Mismatched augmentation inheritance: parent $parent and node $name have different ideas about $container/$pk"
       if ref $pv ne ref $av;
 
@@ -762,52 +831,104 @@ sub dirname_inherited
  my $db   = shift @_;
  my $name = shift @_;
 
- ensure_node_exists($db, $name);
+ensure_node_exists($db, $name);
  my @parents = sort keys %{$db->{nodes}->{$name}->{inherit}};
- return $name unless scalar @parents;
+ return "/$name" unless scalar @parents;
 
  my @printed_parents = map { dirname_inherited($db, $_) } @parents;
 
  return sprintf('%s%s%s/%s',
-                scalar @parents > 1 ? '{' : '',
+                scalar @parents > 1 ? '/{' : '',
                 join(',', @printed_parents),
                 scalar @parents > 1 ? '}' : '',
                 $name);
 }
 
+sub dirnames_inherited
+{
+ my $db   = shift @_;
+ my $name = shift @_;
+
+ ensure_node_exists($db, $name);
+ my @parents = sort keys %{$db->{nodes}->{$name}->{inherit}};
+ return "/$name" unless scalar @parents;
+
+ my @printed_parents = map { dirnames_inherited($db, $_) } @parents;
+
+ return map { "$_/$name" } @printed_parents;
+}
+
 sub ls
 {
- my $db = shift @_;
- my @search = @_;
- my %results;
+ my $db       = shift @_;
+ my $search   = shift @_;
+ my $callback = shift @_;
+ my @results;
 
- foreach my $node (@search)
+ foreach my $term (@$search)
  {
-  my $data = $db->{nodes}->{$node};
-  next unless $data;
+  foreach my $name (keys %{$db->{nodes}})
+  {
+   my $node = $db->{nodes}->{$name};
 
-  $results{$node} = $data;
+   my $add;
+
+   $add = $add || ($term eq $name);
+
+   unless ($add)
+   {
+    foreach my $path (dirnames_inherited($db, $name))
+    {
+     $add = $add || (index($path, "$term") == 0);
+    }
+   }
+
+   next unless $add;
+   next if grep { $_->{name} eq $name } @results;
+
+   $callback->($name, $node) if $callback;
+   push @results, { name => $node, node => $node };
+  }
  }
 
- return \%results;
+ return @results;
 }
 
 sub search
 {
- my $db = shift @_;
- my @search = @_;
- my %results;
+ my $db       = shift @_;
+ my $search   = shift @_;
+ my $callback = shift @_;
+ my @results;
 
- foreach my $term (@search)
+ foreach my $term (@$search)
  {
-  foreach my $node (keys %{$db->{nodes}})
+  foreach my $name (keys %{$db->{nodes}})
   {
-   next if exists $results{$node};
-   next unless $node =~ m/$term/;
-   $results{$node} = $db->{nodes}->{$node};
+   my $node = $db->{nodes}->{$name};
+
+   my $add;
+
+   $add = $add || ($name =~ m/$term/);
+   $add = $add || (
+                   $term =~ m/([^:]+):(.*)/ &&
+                   (
+                    (exists $node->{vars}->{$1} &&
+                     $node->{vars}->{$1} eq $2) ||
+                    (exists $node->{learned_vars}->{$1} &&
+                     $node->{learned_vars}->{$1} eq $2)
+                   )
+                  );
+
+   next unless $add;
+
+   next if grep { $_->{name} eq $name } @results;
+   $callback->($name, $node) if $callback;
+   push @results, { name => $name, node => $node };
   }
  }
- return \%results;
+
+ return @results;
 }
 
 sub read_jim_db

@@ -17,9 +17,17 @@ return sub
  {
   print "ec2 deinitializing @args\n";
  }
- elsif ($command eq 'launch')
+ elsif ($command eq 'start')
  {
-  print "ec2 launching @args\n";
+  print "ec2 starting @args\n";
+ }
+ elsif ($command eq 'stop')
+ {
+  print "ec2 stopping @args\n";
+ }
+ elsif ($command eq 'list')
+ {
+  print "ec2 stopping @args\n";
  }
  else
  {
