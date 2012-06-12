@@ -363,7 +363,7 @@ my %output_handlers = (
 
 if ($options{plugins})
 {
- foreach my $p (glob("plugins/*.jim.pl"))
+ foreach my $p (glob(dirname($0) . "/plugins/*.jim.pl"))
  {
   if ($p =~ m,/(.+)\.jim\.pl,)
   {
