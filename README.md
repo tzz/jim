@@ -40,10 +40,11 @@ for set/learned values, it won't work for contexts.
 
     jim set a interpolated '"$(x)"'
 
-Add a node with parents a and b; node names are unique.
+Add/remove/rename a node with parents a and b; node names are unique.
 
     jim add node1 a b
     jim rm node1
+    jim mv node1 node2
 
 Change the parents to a new list.
 

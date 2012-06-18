@@ -253,6 +253,42 @@ my %handlers = (
                  }
                 },
 
+                mv => sub
+                {
+                 my $db = shift @_;
+                 my $old_name = shift @_;
+                 my $new_name = shift @_;
+
+                 die "No old name given" unless defined $old_name;
+                 die "No new name given" unless defined $new_name;
+
+                 ensure_node_exists($db, $old_name);
+                 ensure_node_valid($db, $new_name);
+
+                 die "Sorry, but new name '$new_name' is already taken"
+                  if exists $db->{nodes}->{$new_name};
+
+                 foreach my $name (keys %{$db->{nodes}})
+                 {
+                  my $node = $db->{nodes}->{$name};
+                  foreach my $parent (keys %{$node->{inherit}})
+                  {
+                   next unless $parent eq $old_name;
+                   $node->{inherit}->{$new_name} = delete $node->{inherit}->{$old_name};
+                   push @modified, $name;
+                  }
+                 }
+
+                 $db->{nodes}->{$new_name} = delete $db->{nodes}->{$old_name};
+
+                 push @modified, $old_name;
+                 push @modified, $new_name;
+                 validate_db($db);
+
+                 print "DONE: mv $old_name $new_name\n"
+                  unless $quiet;
+                },
+
                 'add-rule' => sub
                 {
                  my $db   = shift @_;
