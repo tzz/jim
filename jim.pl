@@ -41,7 +41,7 @@ my %options =
   json       => 0,
   plugins    => 1,
 
-  database   => "jim.json"
+  database   => "jim.json",
  );
 
 my @options_spec =
@@ -403,7 +403,7 @@ if ($options{plugins})
  {
   if ($p =~ m,/(.+)\.jim\.pl,)
   {
-   my $pname = $1;
+   my $pname = basename($1);
    print "Loading plugin $pname from $p\n"
     if $verbose;
 
