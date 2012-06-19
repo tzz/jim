@@ -39,7 +39,7 @@ my %options =
   cfmodule   => 0,
   yaml       => 0,
   json       => 0,
-  plugins    => 1,
+  plugins    => [],
 
   database   => "jim.json",
  );
@@ -49,7 +49,7 @@ my @options_spec =
   "quiet|q!",
   "help!",
   "verbose|v!",
-  "plugins|p!",
+  "plugins|p=s@",
   "cfmodule|cf!",
   "yaml|y!",
   "json|j!",
@@ -404,6 +404,16 @@ if ($options{plugins})
   if ($p =~ m,/(.+)\.jim\.pl,)
   {
    my $pname = basename($1);
+   print "Found plugin $pname in $p\n"
+    if $verbose;
+
+   unless (scalar grep { $_ eq $pname } @{$options{plugins}})
+   {
+    print "Skipping plugin $pname, use --plugins $pname to activate it\n"
+     if $verbose;
+    next;
+   }
+
    print "Loading plugin $pname from $p\n"
     if $verbose;
 
@@ -414,7 +424,7 @@ if ($options{plugins})
    }
    else
    {
-    warn "Plugin $pname failed to load from $p!\n";
+    warn "Plugin $pname failed to load from $p: $@\n";
    }
   }
  }
