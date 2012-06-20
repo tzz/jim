@@ -8,6 +8,14 @@ foreach my $required_env (qw/EC2_INSTANCE_SSH_RSA_KEY EC2_ACCESS_KEY EC2_SECRET_
 {
  die "Sorry, we can't go on until you've set the environment variable $required_env"
   unless defined $ENV{$required_env};
+
+ if (-r $ENV{$required_env})
+ {
+  open my $ef, '<', $ENV{$required_env} or die "Could not open environment pass-through file $ENV{$required_env}: $!";
+  my $line = <$ef>;
+  chomp $line;
+  $ENV{$required_env} = $line;
+ }
 }
 
 my $ec2 = VM::EC2->new(-endpoint => 'http://ec2.amazonaws.com');
@@ -229,15 +237,15 @@ echo 'jim_ec2' >> /var/tmp/cfclass
 
 # the cfengine repo doesn't work yet
 
-#curl -o /tmp/cfengine.gpg.key http://cfengine.com/pub/gpg.key
+curl -o /tmp/cfengine.gpg.key http://cfengine.com/pub/gpg.key
 
-#apt-key add /tmp/cfengine.gpg.key
+apt-key add /tmp/cfengine.gpg.key
 
-#add-apt-repository http://cfengine.com/pub/apt
+add-apt-repository http://cfengine.com/pub/apt
 
-#apt-get update
+apt-get update || echo anyways...
 
-#apt-get install -y --force-yes cfengine-community
+# apt-get install -y --force-yes cfengine-community || echo anyways...
 
 # this is version 3.1.5, quite old!
 apt-get install cfengine3
@@ -261,7 +269,7 @@ body common control {
 
 bundle agent set_persistent_classes {
   vars:
-    "classes" slist => readstringlist("/var/tmp/cfclass", "#[^n]*", "\s*,\s*", "100000", "99999999999");
+    "classes" slist => readstringlist("/var/tmp/cfclass", "#[^n]*", "\s*\n\s*", "100000", "99999999999");
     "now" int => ago(0,0,0,0,0,0);
   reports:
     cfengine_3::
