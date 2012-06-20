@@ -230,25 +230,28 @@ sub ec2_init_script
  my $client_class = shift @_;
 
  return "
+LOG=/tmp/jim.ec2.cfengine.setup.log
+
+echo '000 Bootstrapping host of class $client_class (adding class jim_ec2) to hub $hub_ip.' >> \$LOG 2>&1
 
 echo '$hub_ip' > /var/tmp/cfhub.ip
 echo '$client_class' > /var/tmp/cfclass
 echo 'jim_ec2' >> /var/tmp/cfclass
 
-# the cfengine repo doesn't work yet
+echo '001 Adding the CFEngine APT repo and installing cfengine-community' >> \$LOG 2>&1
 
-curl -o /tmp/cfengine.gpg.key http://cfengine.com/pub/gpg.key
+curl -o /tmp/cfengine.gpg.key http://cfengine.com/pub/gpg.key >> \$LOG 2>&1
 
-apt-key add /tmp/cfengine.gpg.key
+apt-key add /tmp/cfengine.gpg.key >> \$LOG 2>&1
 
-add-apt-repository http://cfengine.com/pub/apt
+add-apt-repository http://cfengine.com/pub/apt >> \$LOG 2>&1
 
-apt-get update || echo anyways...
+(apt-get update || echo anyways...) >> \$LOG 2>&1
 
-# apt-get install -y --force-yes cfengine-community || echo anyways...
+(apt-get install -y --force-yes cfengine-community || echo anyways...) >> \$LOG 2>&1
 
 # this is version 3.1.5, quite old!
-apt-get install cfengine3
+# apt-get install cfengine3 >> \$LOG 2>&1
 
 " . ec2_client_init_script($client_class);
 
@@ -258,7 +261,8 @@ sub ec2_client_init_script
 {
  # from JH's magic
  return '
-LOG=/tmp/jim.ec2.cfengine.setup.log
+
+echo "002 Installing the persistent classes from /var/tmp/cfclass" >> $LOG 2>&1
 
 cat >> /tmp/set_persistent_classes.cf << EOF;
 body common control {
@@ -283,13 +287,14 @@ body classes if_repaired_persist_forever(class) {
 }
 EOF
 
-cf-agent -KI -f /tmp/set_persistent_classes.cf >> $LOG 2>&1
+/var/cfengine/bin/cf-agent -KI -f /tmp/set_persistent_classes.cf >> $LOG 2>&1
 
-rm -rf /tmp/set_persistent_classes.cf
+rm -rf /tmp/set_persistent_classes.cf >> $LOG 2>&1
 
-# Bootstrap to the policy hub 
-# rm -rf /var/cfengine/inputs
+echo "003 Bootstrap to the policy hub" >> $LOG 2>&1
 
-cf-agent -B -s `cat /var/tmp/cfhub.ip` >> $LOG 2>&1
+echo "Normally we would rm -rf /var/cfengine/inputs" >> $LOG 2>&1
+
+/var/cfengine/bin/cf-agent -B -s `cat /var/tmp/cfhub.ip` >> $LOG 2>&1
 ';
 }
